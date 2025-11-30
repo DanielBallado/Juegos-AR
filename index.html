@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Juego Educativo AR</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
+        }
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            overflow: hidden;
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+        .container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: transparent;
+        }
+        #input_video { display: none; }
+        #output_canvas {
+            position: absolute;
+            left: 0; top: 0;
+            width: 100%; height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1);
+        }
+        
+        /* MENÚ DE CATEGORÍAS */
+        .menu {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 30;
+            padding: 20px;
+        }
+        .menu.hidden { display: none; }
+        .menu h1 {
+            font-size: 48px;
+            margin-bottom: 20px;
+            text-shadow: 3px 3px 6px rgba(0,0,0,0.3);
+        }
+        .menu p {
+            font-size: 24px;
+            margin-bottom: 40px;
+            opacity: 0.9;
+        }
+        .category-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            max-width: 900px;
+            width: 100%;
+        }
+        .category-btn {
+            background: white;
+            color: #667eea;
+            border: none;
+            border-radius: 15px;
+            padding: 30px 20px;
+            font-size: 24px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        .category-btn:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+        }
+        .category-btn:active {
+            transform: translateY(-2px);
+        }
+        .category-icon {
+            font-size: 48px;
+            display: block;
+            margin-bottom: 10px;
+        }
+        
+        .loading {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            display: none;
+        }
+        .loading.show { display: block; }
+        .loading strong {
+            display: block;
+            font-size: 24px;
+            margin-bottom: 15px;
+        }
+        .spinner {
+            border: 4px solid #333;
+            border-top: 4px solid #FFD700;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .victory {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            z-index: 20;
+            background: linear-gradient(135deg, #FFD700, #FFA500);
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            animation: celebrate 0.5s ease-out forwards;
+            display: none;
+        }
+        .victory.show { display: block; }
+        @keyframes celebrate {
+            0% { transform: translate(-50%, -50%) scale(0) rotate(-180deg); }
+            50% { transform: translate(-50%, -50%) scale(1.1) rotate(10deg); }
+            100% { transform: translate(-50%, -50%) scale(1) rotate(0deg); }
+        }
+        .victory h1 {
+            font-size: 48px;
+            margin-bottom: 20px;
+            color: #fff;
+            text-shadow: 3px 3px 6px rgba(0,0,0,0.3);
+        }
+        .victory p {
+            font-size: 24px;
+            margin: 15px 0;
+            color: #fff;
+        }
+        .victory button {
+            margin: 15px 10px;
+            padding: 15px 30px;
+            font-size: 20px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: bold;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            transition: transform 0.2s;
+        }
+        .victory button:active {
+            transform: scale(0.95);
+        }
+        .victory button.menu-btn {
+            background: #2196F3;
+        }
+        .stars {
+            font-size: 60px;
+            margin: 20px 0;
+        }
+        
+        .back-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 15;
+            background: rgba(255, 255, 255, 0.9);
+            color: #667eea;
+            border: none;
+            border-radius: 10px;
+            padding: 12px 25px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.3);
+            display: none;
+        }
+        .back-btn.show { display: block; }
+        .back-btn:active {
+            transform: scale(0.95);
+        }
+        
+        @media (max-width: 768px) {
+            .menu h1 { font-size: 36px; }
+            .menu p { font-size: 18px; }
+            .category-btn { font-size: 18px; padding: 20px 15px; }
+            .category-icon { font-size: 36px; }
+            .victory h1 { font-size: 36px; }
+            .victory p { font-size: 18px; }
+        }
+    </style>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+</head>
+<body>
+
+    <div class="container">
+        <!-- MENÚ DE CATEGORÍAS -->
+        <div id="menuScreen" class="menu">
+            <h1>🎨 Juego Educativo AR</h1>
+            <p>Elige una categoría para empezar:</p>
+            <div class="category-grid">
+                <button class="category-btn" onclick="startGame('shapes')">
+                    <span class="category-icon">📐</span>
+                    Formas y Colores
+                </button>
+                <button class="category-btn" onclick="startGame('animals')">
+                    <span class="category-icon">🐶</span>
+                    Animales
+                </button>
+                <button class="category-btn" onclick="startGame('clothes')">
+                    <span class="category-icon">👕</span>
+                    Ropa
+                </button>
+                <button class="category-btn" onclick="startGame('hats')">
+                    <span class="category-icon">🎩</span>
+                    Sombreros
+                </button>
+                <button class="category-btn" onclick="startGame('fruits')">
+                    <span class="category-icon">🍎</span>
+                    Frutas
+                </button>
+                <button class="category-btn" onclick="startGame('vehicles')">
+                    <span class="category-icon">🚗</span>
+                    Vehículos
+                </button>
+            </div>
+        </div>
+        
+        <!-- BOTÓN VOLVER AL MENÚ -->
+        <button id="backBtn" class="back-btn" onclick="backToMenu()">⬅️ Menú</button>
+        
+        <div id="loadingMsg" class="loading">
+            <strong>🎮 Cargando...</strong>
+            <div class="spinner"></div>
+            <div>Iniciando cámara...</div>
+        </div>
+        
+        <div id="victoryScreen" class="victory">
+            <div class="stars">⭐🌟⭐</div>
+            <h1>🎉 ¡LO LOGRASTE! 🎉</h1>
+            <p>¡Completaste todas las figuras!</p>
+            <p>¡Eres increíble! 🏆</p>
+            <button onclick="resetGame()">🔄 Jugar de Nuevo</button>
+            <button class="menu-btn" onclick="backToMenu()">📋 Menú Principal</button>
+        </div>
+        
+        <video id="input_video" playsinline></video>
+        <canvas id="output_canvas"></canvas>
+    </div>
+
+    <script>
+        const videoElement = document.getElementById('input_video');
+        const canvasElement = document.getElementById('output_canvas');
+        const canvasCtx = canvasElement.getContext('2d');
+        const loadingMsg = document.getElementById('loadingMsg');
+        const victoryScreen = document.getElementById('victoryScreen');
+        const menuScreen = document.getElementById('menuScreen');
+        const backBtn = document.getElementById('backBtn');
+
+        // Configurar canvas
+        function resizeCanvas() {
+            canvasElement.width = window.innerWidth;
+            canvasElement.height = window.innerHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        // --- DEFINICIÓN DE CATEGORÍAS ---
+        const categories = {
+            shapes: [
+                { type: 'circle', name: 'Círculo rojo', color: '#FF4444', emoji: '🔴' },
+                { type: 'square', name: 'Cuadrado azul', color: '#4444FF', emoji: '🟦' },
+                { type: 'triangle', name: 'Triángulo verde', color: '#44FF44', emoji: '🔺' },
+                { type: 'star', name: 'Estrella amarilla', color: '#FFDD44', emoji: '⭐' }
+            ],
+            animals: [
+                { type: 'emoji', name: 'Perro', color: '#8B4513', emoji: '🐶' },
+                { type: 'emoji', name: 'Gato', color: '#FFA500', emoji: '🐱' },
+                { type: 'emoji', name: 'Conejo', color: '#FFB6C1', emoji: '🐰' },
+                { type: 'emoji', name: 'Pez', color: '#4169E1', emoji: '🐟' }
+            ],
+            clothes: [
+                { type: 'emoji', name: 'Camiseta', color: '#FF6B6B', emoji: '👕' },
+                { type: 'emoji', name: 'Pantalón', color: '#4ECDC4', emoji: '👖' },
+                { type: 'emoji', name: 'Vestido', color: '#FFB6C1', emoji: '👗' },
+                { type: 'emoji', name: 'Zapatos', color: '#8B4513', emoji: '👞' }
+            ],
+            hats: [
+                { type: 'emoji', name: 'Sombrero de copa', color: '#2C3E50', emoji: '🎩' },
+                { type: 'emoji', name: 'Gorra', color: '#E74C3C', emoji: '🧢' },
+                { type: 'emoji', name: 'Corona', color: '#FFD700', emoji: '👑' },
+                { type: 'emoji', name: 'Sombrero de vaquero', color: '#8B4513', emoji: '🤠' }
+            ],
+            fruits: [
+                { type: 'emoji', name: 'Manzana', color: '#FF4444', emoji: '🍎' },
+                { type: 'emoji', name: 'Plátano', color: '#FFE135', emoji: '🍌' },
+                { type: 'emoji', name: 'Naranja', color: '#FFA500', emoji: '🍊' },
+                { type: 'emoji', name: 'Sandía', color: '#FF6B6B', emoji: '🍉' }
+            ],
+            vehicles: [
+                { type: 'emoji', name: 'Coche', color: '#E74C3C', emoji: '🚗' },
+                { type: 'emoji', name: 'Autobús', color: '#F39C12', emoji: '🚌' },
+                { type: 'emoji', name: 'Avión', color: '#3498DB', emoji: '✈️' },
+                { type: 'emoji', name: 'Barco', color: '#2980B9', emoji: '⛵' }
+            ]
+        };
+
+        let currentCategory = null;
+        let shapes = [];
+        let completedShapes = 0;
+        let gameWon = false;
+        let lastSpokenShape = null;
+        let gameStarted = false;
+        const handStates = {};
+
+        function calculateDistance(x1, y1, x2, y2) {
+            return Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+        }
+
+        function speakShape(text) {
+            if ('speechSynthesis' in window && lastSpokenShape !== text) {
+                window.speechSynthesis.cancel();
+                
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'es-ES';
+                utterance.rate = 0.85;
+                utterance.pitch = 1.2;
+                utterance.volume = 1;
+                
+                window.speechSynthesis.speak(utterance);
+                lastSpokenShape = text;
+                
+                setTimeout(() => {
+                    lastSpokenShape = null;
+                }, 2000);
+            }
+        }
+
+        function startGame(categoryName) {
+            currentCategory = categoryName;
+            const categoryData = categories[categoryName];
+            
+            // Crear formas según la categoría
+            shapes = [];
+            const positions = [
+                { x: 0.2, y: 0.7, targetX: 0.2, targetY: 0.2 },
+                { x: 0.4, y: 0.7, targetX: 0.4, targetY: 0.2 },
+                { x: 0.6, y: 0.7, targetX: 0.6, targetY: 0.2 },
+                { x: 0.8, y: 0.7, targetX: 0.8, targetY: 0.2 }
+            ];
+            
+            categoryData.forEach((item, index) => {
+                shapes.push({
+                    ...item,
+                    ...positions[index],
+                    size: 0.08,
+                    isDragging: false,
+                    isPlaced: false,
+                    draggingHandId: null
+                });
+            });
+            
+            completedShapes = 0;
+            gameWon = false;
+            gameStarted = true;
+            
+            menuScreen.classList.add('hidden');
+            backBtn.classList.add('show');
+            loadingMsg.classList.add('show');
+            
+            // Iniciar cámara si no está iniciada
+            if (!videoElement.srcObject) {
+                startCamera();
+            }
+        }
+        window.startGame = startGame;
+
+        function backToMenu() {
+            gameStarted = false;
+            currentCategory = null;
+            shapes = [];
+            completedShapes = 0;
+            gameWon = false;
+            
+            menuScreen.classList.remove('hidden');
+            backBtn.classList.remove('show');
+            victoryScreen.classList.remove('show');
+            loadingMsg.classList.remove('show');
+        }
+        window.backToMenu = backToMenu;
+
+        function resetGame() {
+            if (currentCategory) {
+                victoryScreen.classList.remove('show');
+                startGame(currentCategory);
+            }
+        }
+        window.resetGame = resetGame;
+
+        function drawShape(ctx, shape, x, y, size, isTarget = false) {
+            const alpha = isTarget ? 0.3 : 1.0;
+            ctx.globalAlpha = alpha;
+            
+            const px = x * canvasElement.width;
+            const py = y * canvasElement.height;
+            const s = size * canvasElement.width;
+
+            if (shape.type === 'emoji') {
+                // Dibujar fondo de color
+                ctx.fillStyle = shape.color;
+                ctx.beginPath();
+                ctx.arc(px, py, s, 0, 2 * Math.PI);
+                ctx.fill();
+                ctx.strokeStyle = '#FFFFFF';
+                ctx.lineWidth = 4;
+                ctx.stroke();
+                
+                // Dibujar emoji encima (también en targets)
+                ctx.globalAlpha = isTarget ? 0.3 : 1.0;
+                ctx.font = `${s * 1.5}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(shape.emoji, px, py);
+            } else {
+                // Dibujar formas geométricas
+                ctx.fillStyle = shape.color;
+                ctx.strokeStyle = '#FFFFFF';
+                ctx.lineWidth = 4;
+
+                switch(shape.type) {
+                    case 'circle':
+                        ctx.beginPath();
+                        ctx.arc(px, py, s, 0, 2 * Math.PI);
+                        ctx.fill();
+                        ctx.stroke();
+                        break;
+                    
+                    case 'square':
+                        ctx.fillRect(px - s, py - s, s * 2, s * 2);
+                        ctx.strokeRect(px - s, py - s, s * 2, s * 2);
+                        break;
+                    
+                    case 'triangle':
+                        ctx.beginPath();
+                        ctx.moveTo(px, py - s);
+                        ctx.lineTo(px - s, py + s);
+                        ctx.lineTo(px + s, py + s);
+                        ctx.closePath();
+                        ctx.fill();
+                        ctx.stroke();
+                        break;
+                    
+                    case 'star':
+                        ctx.beginPath();
+                        for (let i = 0; i < 5; i++) {
+                            const angle = (i * 4 * Math.PI) / 5 - Math.PI / 2;
+                            const radius = i % 2 === 0 ? s : s * 0.5;
+                            const starX = px + Math.cos(angle) * radius;
+                            const starY = py + Math.sin(angle) * radius;
+                            if (i === 0) ctx.moveTo(starX, starY);
+                            else ctx.lineTo(starX, starY);
+                        }
+                        ctx.closePath();
+                        ctx.fill();
+                        ctx.stroke();
+                        break;
+                }
+            }
+            
+            ctx.globalAlpha = 1.0;
+        }
+
+        function checkIfInTarget(shape) {
+            const dist = calculateDistance(shape.x, shape.y, shape.targetX, shape.targetY);
+            return dist < 0.15;
+        }
+
+        function onResults(results) {
+            if (!gameStarted) return;
+            
+            loadingMsg.classList.remove('show');
+            
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            
+            // Dibujar video
+            const videoAspect = results.image.width / results.image.height;
+            const canvasAspect = canvasElement.width / canvasElement.height;
+            
+            let drawWidth = canvasElement.width;
+            let drawHeight = canvasElement.height;
+            let offsetX = 0;
+            let offsetY = 0;
+            
+            if (videoAspect > canvasAspect) {
+                drawWidth = canvasElement.height * videoAspect;
+                offsetX = (canvasElement.width - drawWidth) / 2;
+            } else {
+                drawHeight = canvasElement.width / videoAspect;
+                offsetY = (canvasElement.height - drawHeight) / 2;
+            }
+            
+            canvasCtx.drawImage(results.image, offsetX, offsetY, drawWidth, drawHeight);
+
+            // Dibujar casillas objetivo
+            for (let shape of shapes) {
+                if (!shape.isPlaced) {
+                    drawShape(canvasCtx, shape, shape.targetX, shape.targetY, shape.size, true);
+                    
+                    const tx = shape.targetX * canvasElement.width;
+                    const ty = shape.targetY * canvasElement.height;
+                    const s = shape.size * canvasElement.width * 1.5;
+                    
+                    canvasCtx.strokeStyle = shape.color;
+                    canvasCtx.lineWidth = 5;
+                    canvasCtx.setLineDash([15, 10]);
+                    canvasCtx.strokeRect(tx - s, ty - s, s * 2, s * 2);
+                    canvasCtx.setLineDash([]);
+                }
+            }
+
+            // Procesar manos
+            const currentHandPositions = {};
+
+            if (results.multiHandLandmarks && !gameWon) {
+                for (let i = 0; i < results.multiHandLandmarks.length; i++) {
+                    const landmarks = results.multiHandLandmarks[i];
+                    const handId = i;
+
+                    const indexTip = landmarks[8];
+                    const thumbTip = landmarks[4];
+
+                    drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: '#00FF00', lineWidth: 3});
+                    drawLandmarks(canvasCtx, landmarks, {color: '#FFFF00', lineWidth: 2, radius: 5});
+
+                    const pinchDist = calculateDistance(indexTip.x, indexTip.y, thumbTip.x, thumbTip.y);
+                    const isPinching = pinchDist < 0.08;
+
+                    const cursorX = (indexTip.x + thumbTip.x) / 2;
+                    const cursorY = (indexTip.y + thumbTip.y) / 2;
+
+                    if (isPinching) {
+                        canvasCtx.beginPath();
+                        canvasCtx.moveTo(indexTip.x * canvasElement.width, indexTip.y * canvasElement.height);
+                        canvasCtx.lineTo(thumbTip.x * canvasElement.width, thumbTip.y * canvasElement.height);
+                        canvasCtx.strokeStyle = 'white';
+                        canvasCtx.lineWidth = 5;
+                        canvasCtx.stroke();
+                    }
+
+                    for (let shape of shapes) {
+                        if (shape.isPlaced) continue;
+
+                        const distToShape = calculateDistance(cursorX, cursorY, shape.x, shape.y);
+
+                        if (shape.isDragging && shape.draggingHandId === handId) {
+                            if (!isPinching) {
+                                shape.isDragging = false;
+                                shape.draggingHandId = null;
+                                
+                                if (checkIfInTarget(shape) && !shape.isPlaced) {
+                                    shape.isPlaced = true;
+                                    shape.x = shape.targetX;
+                                    shape.y = shape.targetY;
+                                    completedShapes++;
+                                    
+                                    // Decir el nombre primero
+                                    speakShape(shape.name);
+                                    
+                                    // Verificar victoria DESPUÉS de un delay para que termine de hablar
+                                    if (completedShapes === shapes.length) {
+                                        setTimeout(() => {
+                                            gameWon = true;
+                                            victoryScreen.classList.add('show');
+                                            // Esperar 2 segundos más antes de la felicitación
+                                            setTimeout(() => {
+                                                speakShape('¡Lo lograste! ¡Eres increíble!');
+                                            }, 2000);
+                                        }, 1000);
+                                    }
+                                }
+                            } else {
+                                shape.x = cursorX;
+                                shape.y = cursorY;
+                                
+                                const r = shape.size;
+                                if (shape.x + r > 1) shape.x = 1 - r;
+                                if (shape.x - r < 0) shape.x = r;
+                                if (shape.y + r > 1) shape.y = 1 - r;
+                                if (shape.y - r < 0) shape.y = r;
+                            }
+                        } else if (!shape.isDragging && isPinching && distToShape < shape.size * 1.5) {
+                            shape.isDragging = true;
+                            shape.draggingHandId = handId;
+                        }
+                    }
+
+                    currentHandPositions[handId] = {
+                        lastHandX: cursorX,
+                        lastHandY: cursorY
+                    };
+                }
+            }
+
+            Object.assign(handStates, currentHandPositions);
+
+            // Dibujar formas
+            for (let shape of shapes) {
+                if (shape.isDragging) {
+                    canvasCtx.globalAlpha = 0.3;
+                    canvasCtx.fillStyle = 'black';
+                    const px = shape.x * canvasElement.width;
+                    const py = shape.y * canvasElement.height;
+                    const s = shape.size * canvasElement.width * 1.2;
+                    canvasCtx.beginPath();
+                    canvasCtx.arc(px + 5, py + 5, s, 0, 2 * Math.PI);
+                    canvasCtx.fill();
+                    canvasCtx.globalAlpha = 1.0;
+                }
+                
+                drawShape(canvasCtx, shape, shape.x, shape.y, shape.size);
+                
+                if (shape.isDragging && checkIfInTarget(shape)) {
+                    const tx = shape.targetX * canvasElement.width;
+                    const ty = shape.targetY * canvasElement.height;
+                    const s = shape.size * canvasElement.width * 1.5;
+                    
+                    canvasCtx.strokeStyle = '#00FF00';
+                    canvasCtx.lineWidth = 8;
+                    canvasCtx.setLineDash([]);
+                    canvasCtx.strokeRect(tx - s, ty - s, s * 2, s * 2);
+                }
+            }
+
+            // Contador
+            canvasCtx.font = 'bold 40px Arial';
+            canvasCtx.fillStyle = 'white';
+            canvasCtx.strokeStyle = 'black';
+            canvasCtx.lineWidth = 4;
+            const counterText = `${completedShapes} / ${shapes.length}`;
+            canvasCtx.strokeText(counterText, 30, 50);
+            canvasCtx.fillText(counterText, 30, 50);
+
+            canvasCtx.restore();
+        }
+
+        const hands = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+        
+        hands.setOptions({
+            maxNumHands: 2,
+            modelComplexity: 0,
+            minDetectionConfidence: 0.6,
+            minTrackingConfidence: 0.6
+        });
+        
+        hands.onResults(onResults);
+
+        async function startCamera() {
+            try {
+                const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+                
+                const constraints = {
+                    video: {
+                        facingMode: 'user',
+                        width: isMobile ? { ideal: 640 } : { ideal: 1280 },
+                        height: isMobile ? { ideal: 480 } : { ideal: 720 }
+                    }
+                };
+
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                videoElement.srcObject = stream;
+                videoElement.setAttribute('playsinline', '');
+                videoElement.setAttribute('webkit-playsinline', '');
+                
+                await videoElement.play();
+
+                async function detectFrame() {
+                    if (videoElement.readyState === videoElement.HAVE_ENOUGH_DATA) {
+                        await hands.send({ image: videoElement });
+                    }
+                    requestAnimationFrame(detectFrame);
+                }
+                
+                detectFrame();
+                
+            } catch (err) {
+                console.error('Error al iniciar cámara:', err);
+            }
+        }
+    </script>
+</body>
+</html>
