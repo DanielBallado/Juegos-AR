@@ -62,10 +62,10 @@
         }
         .category-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
             gap: 20px;
-            max-width: 900px;
-            width: 100%;
+            max-width: 1000px;
+            width: 90%;
         }
         .category-btn {
             background: white;
@@ -199,12 +199,59 @@
         }
         
         @media (max-width: 768px) {
-            .menu h1 { font-size: 36px; }
-            .menu p { font-size: 18px; }
-            .category-btn { font-size: 18px; padding: 20px 15px; }
-            .category-icon { font-size: 36px; }
-            .victory h1 { font-size: 36px; }
+            .menu h1 { font-size: 32px; }
+            .menu p { font-size: 16px; margin-bottom: 30px; }
+            .category-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 15px;
+                padding: 0 10px;
+            }
+            .category-btn { font-size: 16px; padding: 20px 10px; }
+            .category-icon { font-size: 32px; margin-bottom: 5px; }
+            .victory { padding: 30px 20px; max-width: 90%; }
+            .victory h1 { font-size: 32px; }
             .victory p { font-size: 18px; }
+            .victory button { font-size: 18px; padding: 12px 25px; }
+            .stars { font-size: 48px; }
+            .back-btn { 
+                top: 10px; 
+                right: 10px; 
+                padding: 10px 20px; 
+                font-size: 16px; 
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .menu h1 { font-size: 28px; }
+            .menu p { font-size: 14px; }
+            .category-btn { font-size: 14px; padding: 15px 10px; }
+            .category-icon { font-size: 28px; }
+            .victory h1 { font-size: 28px; }
+            .victory p { font-size: 16px; }
+            .victory button { 
+                font-size: 16px; 
+                padding: 10px 20px;
+                margin: 10px 5px;
+                display: block;
+                width: 100%;
+            }
+        }
+        
+        @media (orientation: landscape) and (max-height: 600px) {
+            .menu h1 { font-size: 28px; margin-bottom: 10px; }
+            .menu p { font-size: 14px; margin-bottom: 20px; }
+            .category-grid { 
+                grid-template-columns: repeat(3, 1fr);
+                max-width: 100%;
+                gap: 10px;
+            }
+            .category-btn { padding: 15px 10px; }
+            .category-icon { font-size: 24px; margin-bottom: 5px; }
+            .victory { padding: 20px; }
+            .victory h1 { font-size: 24px; margin-bottom: 10px; }
+            .victory p { font-size: 14px; margin: 5px 0; }
+            .stars { font-size: 36px; margin: 10px 0; }
+            .victory button { font-size: 14px; padding: 8px 20px; margin: 5px; }
         }
     </style>
     
@@ -281,11 +328,16 @@
 
         // Configurar canvas
         function resizeCanvas() {
-            canvasElement.width = window.innerWidth;
-            canvasElement.height = window.innerHeight;
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+            canvasElement.width = width;
+            canvasElement.height = height;
         }
         resizeCanvas();
         window.addEventListener('resize', resizeCanvas);
+        window.addEventListener('orientationchange', () => {
+            setTimeout(resizeCanvas, 100);
+        });
 
         // --- DEFINICIÓN DE CATEGORÍAS ---
         const categories = {
@@ -333,49 +385,84 @@
         let gameWon = false;
         let lastSpokenShape = null;
         let gameStarted = false;
+        let audioInitialized = false; // Para saber si el audio ya se inicializó
         const handStates = {};
 
         function calculateDistance(x1, y1, x2, y2) {
             return Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
         }
 
+        // Inicializar audio en móviles (requiere interacción del usuario)
+        function initializeAudio() {
+            if (!audioInitialized && 'speechSynthesis' in window) {
+                // En móviles, necesitamos "despertar" el sistema TTS con una voz silenciosa
+                const utterance = new SpeechSynthesisUtterance('');
+                utterance.volume = 0;
+                window.speechSynthesis.speak(utterance);
+                audioInitialized = true;
+            }
+        }
+
         function speakShape(text) {
-            if ('speechSynthesis' in window && lastSpokenShape !== text) {
+            if ('speechSynthesis' in window) {
+                // Cancelar cualquier voz anterior
                 window.speechSynthesis.cancel();
                 
-                const utterance = new SpeechSynthesisUtterance(text);
-                utterance.lang = 'es-ES';
-                utterance.rate = 0.85;
-                utterance.pitch = 1.2;
-                utterance.volume = 1;
-                
-                window.speechSynthesis.speak(utterance);
-                lastSpokenShape = text;
-                
+                // Pequeña pausa para asegurar que se canceló
                 setTimeout(() => {
-                    lastSpokenShape = null;
-                }, 2000);
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    utterance.lang = 'es-ES';
+                    utterance.rate = 0.85;
+                    utterance.pitch = 1.2;
+                    utterance.volume = 1;
+                    
+                    // Para móviles iOS
+                    utterance.onstart = () => {
+                        console.log('Audio iniciado:', text);
+                    };
+                    
+                    utterance.onerror = (event) => {
+                        console.error('Error de audio:', event);
+                    };
+                    
+                    window.speechSynthesis.speak(utterance);
+                    lastSpokenShape = text;
+                    
+                    setTimeout(() => {
+                        lastSpokenShape = null;
+                    }, 2000);
+                }, 100);
             }
         }
 
         function startGame(categoryName) {
+            // Inicializar audio al hacer clic (necesario en móviles)
+            initializeAudio();
+            
             currentCategory = categoryName;
             const categoryData = categories[categoryName];
+            
+            // Detectar tamaño de pantalla para ajustar posiciones
+            const isMobile = window.innerWidth < 768;
+            const isSmallScreen = window.innerWidth < 480;
+            
+            // Ajustar tamaño de figuras según dispositivo
+            const shapeSize = isSmallScreen ? 0.06 : isMobile ? 0.07 : 0.08;
             
             // Crear formas según la categoría
             shapes = [];
             const positions = [
-                { x: 0.2, y: 0.7, targetX: 0.2, targetY: 0.2 },
-                { x: 0.4, y: 0.7, targetX: 0.4, targetY: 0.2 },
-                { x: 0.6, y: 0.7, targetX: 0.6, targetY: 0.2 },
-                { x: 0.8, y: 0.7, targetX: 0.8, targetY: 0.2 }
+                { x: 0.2, y: isMobile ? 0.75 : 0.7, targetX: 0.2, targetY: isMobile ? 0.25 : 0.2 },
+                { x: 0.4, y: isMobile ? 0.75 : 0.7, targetX: 0.4, targetY: isMobile ? 0.25 : 0.2 },
+                { x: 0.6, y: isMobile ? 0.75 : 0.7, targetX: 0.6, targetY: isMobile ? 0.25 : 0.2 },
+                { x: 0.8, y: isMobile ? 0.75 : 0.7, targetX: 0.8, targetY: isMobile ? 0.25 : 0.2 }
             ];
             
             categoryData.forEach((item, index) => {
                 shapes.push({
                     ...item,
                     ...positions[index],
-                    size: 0.08,
+                    size: shapeSize,
                     isDragging: false,
                     isPlaced: false,
                     draggingHandId: null
@@ -398,11 +485,17 @@
         window.startGame = startGame;
 
         function backToMenu() {
+            // Detener cualquier audio que esté sonando
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+            }
+            
             gameStarted = false;
             currentCategory = null;
             shapes = [];
             completedShapes = 0;
             gameWon = false;
+            lastSpokenShape = null;
             
             menuScreen.classList.remove('hidden');
             backBtn.classList.remove('show');
@@ -412,7 +505,13 @@
         window.backToMenu = backToMenu;
 
         function resetGame() {
+            // Detener audio antes de reiniciar
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+            }
+            
             if (currentCategory) {
+                lastSpokenShape = null;
                 victoryScreen.classList.remove('show');
                 startGame(currentCategory);
             }
@@ -494,7 +593,10 @@
 
         function checkIfInTarget(shape) {
             const dist = calculateDistance(shape.x, shape.y, shape.targetX, shape.targetY);
-            return dist < 0.15;
+            // Tolerancia más grande en móviles
+            const isMobile = window.innerWidth < 768;
+            const tolerance = isMobile ? 0.18 : 0.15;
+            return dist < tolerance;
         }
 
         function onResults(results) {
@@ -556,7 +658,10 @@
                     drawLandmarks(canvasCtx, landmarks, {color: '#FFFF00', lineWidth: 2, radius: 5});
 
                     const pinchDist = calculateDistance(indexTip.x, indexTip.y, thumbTip.x, thumbTip.y);
-                    const isPinching = pinchDist < 0.08;
+                    // Umbral más grande en móviles para mejor detección
+                    const isMobile = window.innerWidth < 768;
+                    const pinchThreshold = isMobile ? 0.1 : 0.08;
+                    const isPinching = pinchDist < pinchThreshold;
 
                     const cursorX = (indexTip.x + thumbTip.x) / 2;
                     const cursorY = (indexTip.y + thumbTip.y) / 2;
@@ -654,14 +759,18 @@
                 }
             }
 
-            // Contador
-            canvasCtx.font = 'bold 40px Arial';
+            // Contador - posición adaptativa
+            const isMobile = window.innerWidth < 768;
+            const fontSize = isMobile ? 30 : 40;
+            const padding = isMobile ? 15 : 30;
+            
+            canvasCtx.font = `bold ${fontSize}px Arial`;
             canvasCtx.fillStyle = 'white';
             canvasCtx.strokeStyle = 'black';
-            canvasCtx.lineWidth = 4;
+            canvasCtx.lineWidth = isMobile ? 3 : 4;
             const counterText = `${completedShapes} / ${shapes.length}`;
-            canvasCtx.strokeText(counterText, 30, 50);
-            canvasCtx.fillText(counterText, 30, 50);
+            canvasCtx.strokeText(counterText, padding, isMobile ? 40 : 50);
+            canvasCtx.fillText(counterText, padding, isMobile ? 40 : 50);
 
             canvasCtx.restore();
         }
